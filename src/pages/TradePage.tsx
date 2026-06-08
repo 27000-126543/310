@@ -1,10 +1,9 @@
 import { useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Search, Coins, CheckCircle, X, TrendingUp } from "lucide-react"
+import { Search, Coins, CheckCircle, X, TrendingUp, ChevronRight } from "lucide-react"
 import { useGameStore } from "@/store"
 import { QUALITY_LABELS, QUALITY_COLORS } from "@/types"
 import type { Quality, Transaction, Blueprint, ItemType } from "@/types"
-import { ALL_BLUEPRINTS } from "@/data/mock"
 
 const TABS = ["市场浏览", "上架出售", "成交记录"]
 const fadeUp = { initial: { opacity: 0, y: 20 }, animate: { opacity: 1, y: 0 } }
@@ -24,6 +23,7 @@ export default function TradePage() {
   const [search, setSearch] = useState("")
   const [itemFilter, setItemFilter] = useState<ItemType | "all">("all")
   const [confirmItem, setConfirmItem] = useState<Transaction | null>(null)
+  const [detailItem, setDetailItem] = useState<Transaction | null>(null)
   const [prices, setPrices] = useState<Record<string, string>>({})
   const store = useGameStore()
 
@@ -34,6 +34,14 @@ export default function TradePage() {
 
   const latestTrend = store.trendEvents[0]
   const trendActive = latestTrend && Date.now() - latestTrend.timestamp < 3600000
+
+  const handleMarketCardClick = (item: Transaction) => {
+    if (item.itemType === "blueprint") {
+      setDetailItem(item)
+    } else {
+      setConfirmItem(item)
+    }
+  }
 
   return (
     <motion.div {...fadeUp} className="p-4 pb-16 space-y-4">
@@ -99,7 +107,12 @@ export default function TradePage() {
                 const isBlueprint = item.itemType === "blueprint"
                 const bpSuggested = isBlueprint ? store.getSuggestedPrice("blueprint", item.quality as Quality) : null
                 return (
-                  <motion.div key={item.id} variants={fadeUp} className="card-dark hover:border-gold-400/30 transition-colors">
+                  <motion.div
+                    key={item.id}
+                    variants={fadeUp}
+                    className="card-dark hover:border-gold-400/30 transition-colors cursor-pointer"
+                    onClick={() => handleMarketCardClick(item)}
+                  >
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-1.5">
                         {isBlueprint && (
@@ -121,10 +134,25 @@ export default function TradePage() {
                         近7天均价: {bpSuggested.avg.toLocaleString()}
                       </div>
                     )}
-                    <div className="mb-3" />
-                    <button onClick={() => setConfirmItem(item)} className="btn-gold w-full text-sm">
-                      购买
-                    </button>
+                    <div className="flex items-center justify-between mt-2">
+                      {isBlueprint ? (
+                        <>
+                          <span className="text-xs text-gray-500">查看详情</span>
+                          <ChevronRight size={14} className="text-gray-500" />
+                        </>
+                      ) : (
+                        <span />
+                      )}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setConfirmItem(item)
+                        }}
+                        className="btn-gold text-sm px-4"
+                      >
+                        购买
+                      </button>
+                    </div>
                   </motion.div>
                 )
               })}
@@ -265,7 +293,7 @@ export default function TradePage() {
                       {tx.quality && <QualityBadge quality={tx.quality as Quality} />}
                     </div>
                     <div className="text-xs text-gray-500">
-                      {tx.sellerName} → {tx.buyerId ? "买家" : "—"} · {formatTime(tx.timestamp)}
+                      卖家: {tx.sellerName} → 买家: {tx.buyerId ? "我" : "—"} · {formatTime(tx.timestamp)}
                     </div>
                   </div>
                 </div>
@@ -279,6 +307,167 @@ export default function TradePage() {
             )}
           </motion.div>
         )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {detailItem && detailItem.itemType === "blueprint" && (() => {
+          const bpInfo = store.getBlueprintMarketInfo(detailItem.itemName)
+          const suggested = store.getSuggestedPrice("blueprint", detailItem.quality as Quality)
+          const recentTx = bpInfo.recentTransactions.slice(0, 5)
+          return (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
+              onClick={() => setDetailItem(null)}
+            >
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                onClick={(e) => e.stopPropagation()}
+                className="card-dark w-[90vw] max-w-md max-h-[85vh] overflow-y-auto space-y-4"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-500/30 text-purple-300 border border-purple-400/30">图纸</span>
+                    <h3 className="section-title !mb-0">{detailItem.itemName}</h3>
+                  </div>
+                  <button onClick={() => setDetailItem(null)} className="text-gray-500 hover:text-gray-300">
+                    <X size={18} />
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between bg-dark-700/50 rounded-lg p-3">
+                  <div>
+                    <div className="text-xs text-gray-400 mb-0.5">卖家</div>
+                    <div className="text-sm font-medium">{detailItem.sellerName}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-xs text-gray-400 mb-0.5">当前报价</div>
+                    <div className="flex items-center gap-1 text-gold-400 font-bold text-lg">
+                      <Coins size={16} /> {detailItem.price.toLocaleString()}
+                    </div>
+                  </div>
+                  {detailItem.quality && (
+                    <QualityBadge quality={detailItem.quality as Quality} />
+                  )}
+                </div>
+
+                <div className="bg-dark-700/50 rounded-lg p-3 space-y-2">
+                  <h4 className="text-sm font-medium text-gold-400">建议价格</h4>
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div>
+                      <div className="text-xs text-gray-500">最低</div>
+                      <div className="text-sm text-green-400/80">{suggested.min.toLocaleString()}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-500">均价</div>
+                      <div className="text-sm text-gold-400/80">{suggested.avg.toLocaleString()}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-500">最高</div>
+                      <div className="text-sm text-orange-400/80">{suggested.max.toLocaleString()}</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-dark-700/50 rounded-lg p-3 space-y-2">
+                  <h4 className="text-sm font-medium text-blue-400">近7天成交统计</h4>
+                  {bpInfo.recentCount > 0 ? (
+                    <div className="grid grid-cols-4 gap-2 text-center">
+                      <div>
+                        <div className="text-xs text-gray-500">成交数</div>
+                        <div className="text-sm font-medium">{bpInfo.recentCount}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-gray-500">均价</div>
+                        <div className="text-sm text-gold-400/80">{bpInfo.recentAvg.toLocaleString()}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-gray-500">最低</div>
+                        <div className="text-sm text-green-400/80">{bpInfo.recentMin.toLocaleString()}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-gray-500">最高</div>
+                        <div className="text-sm text-orange-400/80">{bpInfo.recentMax.toLocaleString()}</div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-xs text-gray-600 text-center py-1">近7天暂无成交</div>
+                  )}
+                </div>
+
+                <div className="bg-dark-700/50 rounded-lg p-3 space-y-2">
+                  <h4 className="text-sm font-medium text-purple-400">历史成交区间</h4>
+                  {bpInfo.allTimeMin > 0 || bpInfo.allTimeMax > 0 ? (
+                    <div className="text-center">
+                      <span className="text-sm text-green-400/80">{bpInfo.allTimeMin.toLocaleString()}</span>
+                      <span className="text-xs text-gray-500 mx-2">~</span>
+                      <span className="text-sm text-orange-400/80">{bpInfo.allTimeMax.toLocaleString()}</span>
+                    </div>
+                  ) : (
+                    <div className="text-xs text-gray-600 text-center py-1">暂无历史成交数据</div>
+                  )}
+                </div>
+
+                <div className="bg-dark-700/50 rounded-lg p-3 space-y-2">
+                  <h4 className="text-sm font-medium text-cyan-400">当前卖家报价</h4>
+                  {bpInfo.currentListings.length > 0 ? (
+                    <div className="space-y-1.5">
+                      {bpInfo.currentListings.map((listing) => (
+                        <div key={listing.id} className="flex items-center justify-between text-sm">
+                          <span className="text-gray-400">{listing.sellerName}</span>
+                          <div className="flex items-center gap-1 text-gold-400 font-medium">
+                            <Coins size={12} /> {listing.price.toLocaleString()}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-xs text-gray-600 text-center py-1">暂无在售报价</div>
+                  )}
+                </div>
+
+                <div className="bg-dark-700/50 rounded-lg p-3 space-y-2">
+                  <h4 className="text-sm font-medium text-amber-400">最近成交记录</h4>
+                  {recentTx.length > 0 ? (
+                    <div className="space-y-1.5">
+                      {recentTx.map((tx) => (
+                        <div key={tx.id} className="flex items-center justify-between text-sm">
+                          <div className="min-w-0">
+                            <span className="text-gray-400">{tx.sellerName}</span>
+                            <span className="text-gray-600 mx-1">→</span>
+                            <span className="text-gray-400">{tx.buyerId ? "我" : "—"}</span>
+                          </div>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <div className="flex items-center gap-1 text-gold-400/80">
+                              <Coins size={12} /> {tx.price.toLocaleString()}
+                            </div>
+                            <span className="text-xs text-gray-600">{formatTime(tx.timestamp)}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-xs text-gray-600 text-center py-1">暂无成交记录</div>
+                  )}
+                </div>
+
+                <button
+                  onClick={() => {
+                    setConfirmItem(detailItem)
+                    setDetailItem(null)
+                  }}
+                  className="btn-gold w-full text-sm"
+                >
+                  购买
+                </button>
+              </motion.div>
+            </motion.div>
+          )
+        })()}
       </AnimatePresence>
 
       <AnimatePresence>

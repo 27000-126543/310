@@ -1,6 +1,6 @@
 import { useState } from "react"
-import { motion } from "framer-motion"
-import { Star, Sparkles, Palette, Shirt, Gem, ScrollText, BookOpen } from "lucide-react"
+import { motion, AnimatePresence } from "framer-motion"
+import { Star, Sparkles, Palette, Shirt, Gem, ScrollText, BookOpen, ChevronDown } from "lucide-react"
 import { useGameStore } from "@/store"
 import { ALL_BLUEPRINTS } from "@/data/mock"
 import { AFFIX_LABELS, AFFIX_COLORS, QUALITY_LABELS, QUALITY_COLORS, STYLE_LABELS } from "@/types"
@@ -39,9 +39,126 @@ function FashionGauge({ value }: { value: number }) {
 
 const QUALITY_ORDER: Quality[] = ["legendary", "epic", "fine", "common"]
 
+const QUALITY_SOURCE: Record<Quality, string[]> = {
+  common: ["初始图纸", "交易中心购买"],
+  fine: ["初始图纸", "交易中心购买"],
+  epic: ["时装秀奖励", "交易中心购买"],
+  legendary: ["时装秀奖励(稀有)", "交易中心购买(稀有)"],
+}
+
+function CodexDetail({ blueprint, status, store }: {
+  blueprint: Blueprint
+  status: "owned" | "listed" | "unobtained"
+  store: ReturnType<typeof useGameStore>
+}) {
+  const marketInfo = store.getBlueprintMarketInfo(blueprint.name)
+  const relatedDesigns = store.designs.filter((d) => d.blueprintId === blueprint.id)
+  const listingItem = store.marketItems.find(
+    (m) => m.itemType === "blueprint" && m.itemId === blueprint.id && !m.completed && m.sellerId === store.studio.id
+  )
+
+  return (
+    <div className="mt-2 pl-2 border-l-2 space-y-2" style={{ borderColor: QUALITY_COLORS[blueprint.quality] + "40" }}>
+      {status === "owned" && (
+        <>
+          <div>
+            <p className="text-[10px] text-gray-500 mb-0.5">来源记录</p>
+            <p className="text-xs text-gray-300">{blueprint.source}</p>
+          </div>
+          <div>
+            <p className="text-[10px] text-gray-500 mb-0.5">生成设计</p>
+            {relatedDesigns.length > 0 ? (
+              <div className="space-y-0.5">
+                {relatedDesigns.map((d) => (
+                  <div key={d.id} className="flex items-center gap-2 text-xs text-gray-300">
+                    <span>{d.name}</span>
+                    <span className="text-gold-400">+{d.fashionIndex}</span>
+                    <span className="text-gray-500">{new Date(d.createdAt).toLocaleDateString()}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-gray-500">暂无</p>
+            )}
+          </div>
+          <div>
+            <p className="text-[10px] text-gray-500 mb-0.5">上架状态</p>
+            {listingItem ? (
+              <p className="text-xs text-yellow-400">已上架 - 价格: {listingItem.price}</p>
+            ) : (
+              <p className="text-xs text-gray-400">未上架</p>
+            )}
+          </div>
+        </>
+      )}
+
+      {status === "listed" && (
+        <>
+          <div>
+            <p className="text-[10px] text-yellow-400 mb-0.5">当前已上架出售中</p>
+            {listingItem && (
+              <p className="text-xs text-gray-300">上架价格: {listingItem.price}</p>
+            )}
+          </div>
+          <div>
+            <p className="text-[10px] text-gray-500 mb-0.5">来源记录</p>
+            <p className="text-xs text-gray-300">{blueprint.source}</p>
+          </div>
+          <div>
+            <p className="text-[10px] text-gray-500 mb-0.5">生成设计</p>
+            {relatedDesigns.length > 0 ? (
+              <div className="space-y-0.5">
+                {relatedDesigns.map((d) => (
+                  <div key={d.id} className="flex items-center gap-2 text-xs text-gray-300">
+                    <span>{d.name}</span>
+                    <span className="text-gold-400">+{d.fashionIndex}</span>
+                    <span className="text-gray-500">{new Date(d.createdAt).toLocaleDateString()}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-gray-500">暂无</p>
+            )}
+          </div>
+        </>
+      )}
+
+      {status === "unobtained" && (
+        <>
+          <div>
+            <p className="text-[10px] text-gray-500 mb-0.5">获取途径</p>
+            <div className="flex flex-wrap gap-1">
+              {QUALITY_SOURCE[blueprint.quality].map((src) => (
+                <span key={src} className="text-[10px] px-1.5 py-0.5 rounded bg-dark-600 text-gray-300">{src}</span>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+
+      {(status === "owned" || status === "listed" || status === "unobtained") && marketInfo.recentCount > 0 && (
+        <div>
+          <p className="text-[10px] text-gray-500 mb-0.5">历史成交</p>
+          <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs">
+            <span className="text-gray-500">近期均价</span>
+            <span className="text-gold-400">{marketInfo.recentAvg}</span>
+            <span className="text-gray-500">近期最低</span>
+            <span className="text-gray-300">{marketInfo.recentMin}</span>
+            <span className="text-gray-500">近期最高</span>
+            <span className="text-gray-300">{marketInfo.recentMax}</span>
+            <span className="text-gray-500">成交笔数</span>
+            <span className="text-gray-300">{marketInfo.recentCount}</span>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function DesignPage() {
   const store = useGameStore()
   const [designName, setDesignName] = useState("")
+  const [selectedCodexId, setSelectedCodexId] = useState<string | null>(null)
 
   const hasPreview = store.selectedFabric && store.selectedColor
 
@@ -160,7 +277,7 @@ export default function DesignPage() {
                 {store.currentAffixes.map((affix) => (
                   <motion.div key={affix} initial={{ opacity: 0, scale: 0.5 }} animate={{ opacity: 1, scale: 1 }}
                     className="absolute -top-4 left-1/2 -translate-x-1/2 text-sm font-bold px-3 py-1 rounded-full"
-                    style={{ color: AFFIX_COLORS[affix as AffixType], textShadow: `0 0 10px ${AFFIX_COLORS[affix as AffixType]}`, backgroundColor: AFFIX_COLORS[affix as AffixType] + "20" }}>
+                    style={{ color: AFFIX_COLORS[affix as AffixType], textShadow: `0 0 10px ${AFFIX_COLORS[affix as AffixType]}`, backgroundColor: AFFIX_COLORS[affix + "" as AffixType] + "20" }}>
                     {AFFIX_LABELS[affix as AffixType]}
                   </motion.div>
                 ))}
@@ -276,7 +393,7 @@ export default function DesignPage() {
           )}
         </div>
 
-        <div className="card-dark max-h-64 overflow-y-auto">
+        <div className="card-dark max-h-96 overflow-y-auto">
           <h2 className="section-title flex items-center gap-2"><BookOpen size={18} />图纸图鉴</h2>
           <div className="space-y-3">
             {codexByQuality.map((group) => (
@@ -289,22 +406,46 @@ export default function DesignPage() {
                   <div className="flex-1 h-px bg-dark-500/20" />
                 </div>
                 <div className="space-y-1">
-                  {group.entries.map(({ blueprint, status }) => (
-                    <div key={blueprint.id}
-                      className={`flex items-center justify-between py-1 px-2 rounded ${
-                        status === "unobtained" ? "opacity-40" : ""}`}>
-                      <span className="text-xs">{blueprint.name}</span>
-                      {status === "owned" && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-500/20 text-green-400 font-bold">已拥有</span>
-                      )}
-                      {status === "listed" && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-yellow-500/20 text-yellow-400 font-bold">已上架</span>
-                      )}
-                      {status === "unobtained" && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-500/20 text-gray-400 font-bold">未获得</span>
-                      )}
-                    </div>
-                  ))}
+                  {group.entries.map(({ blueprint, status }) => {
+                    const isExpanded = selectedCodexId === blueprint.id
+                    return (
+                      <div key={blueprint.id}>
+                        <button
+                          onClick={() => setSelectedCodexId(isExpanded ? null : blueprint.id)}
+                          className={`w-full flex items-center justify-between py-1 px-2 rounded transition-colors ${
+                            status === "unobtained" ? "opacity-40" : ""
+                          } ${isExpanded ? "bg-dark-600/50" : "hover:bg-dark-600/30"}`}
+                        >
+                          <span className="text-xs">{blueprint.name}</span>
+                          <div className="flex items-center gap-1.5">
+                            {status === "owned" && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-500/20 text-green-400 font-bold">已拥有</span>
+                            )}
+                            {status === "listed" && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-yellow-500/20 text-yellow-400 font-bold">已上架</span>
+                            )}
+                            {status === "unobtained" && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-500/20 text-gray-400 font-bold">未获得</span>
+                            )}
+                            <ChevronDown size={12} className={`text-gray-500 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`} />
+                          </div>
+                        </button>
+                        <AnimatePresence>
+                          {isExpanded && (
+                            <motion.div
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: "auto", opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              transition={{ duration: 0.2 }}
+                              className="overflow-hidden"
+                            >
+                              <CodexDetail blueprint={blueprint} status={status} store={store} />
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             ))}

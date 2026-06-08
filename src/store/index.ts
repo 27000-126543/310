@@ -56,6 +56,11 @@ interface GameState {
   addTrendEvent: (event: TrendEvent) => void
   getSuggestedPrice: (itemType: string, quality?: Quality) => { min: number; max: number; avg: number }
   getBlueprintCodex: () => { blueprint: Blueprint; status: "owned" | "listed" | "unobtained" }[]
+  getBlueprintMarketInfo: (blueprintName: string) => {
+    recentAvg: number; recentMin: number; recentMax: number; recentCount: number
+    allTimeMin: number; allTimeMax: number
+    recentTransactions: Transaction[]; currentListings: Transaction[]
+  }
 }
 
 export const useGameStore = create<GameState>()(persist((set, get) => ({
@@ -539,6 +544,49 @@ export const useGameStore = create<GameState>()(persist((set, get) => ({
       status: ownedIds.has(bp.id) ? "owned" as const : listedIds.has(bp.id) ? "listed" as const : "unobtained" as const,
     }))
   },
+
+  getBlueprintMarketInfo: (blueprintName: string) => {
+    const state = get()
+    const allTx = state.transactions.filter(
+      (t) => t.itemType === "blueprint" && t.itemName === blueprintName && t.completed
+    )
+    const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000
+    const recentTx = allTx.filter((t) => t.timestamp >= sevenDaysAgo)
+    const recentPrices = recentTx.map((t) => t.price)
+    const allPrices = allTx.map((t) => t.price)
+
+    const currentListings = state.marketItems.filter(
+      (m) => m.itemType === "blueprint" && m.itemName === blueprintName && !m.completed
+    )
+
+    return {
+      recentAvg: recentPrices.length > 0 ? Math.round(recentPrices.reduce((a, b) => a + b, 0) / recentPrices.length) : 0,
+      recentMin: recentPrices.length > 0 ? Math.min(...recentPrices) : 0,
+      recentMax: recentPrices.length > 0 ? Math.max(...recentPrices) : 0,
+      recentCount: recentPrices.length,
+      allTimeMin: allPrices.length > 0 ? Math.min(...allPrices) : 0,
+      allTimeMax: allPrices.length > 0 ? Math.max(...allPrices) : 0,
+      recentTransactions: recentTx.slice(0, 5),
+      currentListings,
+    }
+  },
+}), {
+  name: "fashion-workshop-save",
+  partialize: (state) => ({
+    studio: state.studio,
+    staff: state.staff,
+    designs: state.designs,
+    craftedItems: state.craftedItems,
+    blueprints: state.blueprints,
+    facilities: state.facilities,
+    transactions: state.transactions,
+    marketItems: state.marketItems,
+    fashionShows: state.fashionShows,
+    trendEvents: state.trendEvents,
+    todos: state.todos,
+    activities: state.activities,
+    approvals: state.approvals,
+  }),
 }))
 
 function rollAffixs(probs: Record<string, number>): AffixType[] {

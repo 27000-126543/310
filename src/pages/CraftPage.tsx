@@ -21,7 +21,7 @@ const MATERIAL_LABELS: Record<string, string> = {
   silk: "丝绸", cotton: "棉布", leather: "皮革", crystal: "水晶", neonThread: "霓虹丝线", bamboo: "竹纤维",
 }
 
-function getDesignCosts(design: Design): Record<string, number> {
+export function getDesignCosts(design: Design): Record<string, number> {
   const keys = Object.keys(MATERIAL_COSTS)
   const idx = Math.abs(hashCode(design.id)) % keys.length
   const base = MATERIAL_COSTS[keys[idx]]
@@ -66,7 +66,7 @@ function QualityBadge({ quality }: { quality: Quality }) {
 export default function CraftPage() {
   const store = useGameStore()
   const [selectedDesign, setSelectedDesign] = useState<Design | null>(null)
-  const [craftResult, setCraftResult] = useState<{ success: boolean; quality: Quality; scoreCap: number } | null>(null)
+  const [craftResult, setCraftResult] = useState<{ success: boolean; quality: Quality; scoreCap: number; returnedMaterials?: Record<string, number> } | null>(null)
 
   const tailor = store.staff.filter((s) => s.role === "tailor").sort((a, b) => b.skillLevel - a.skillLevel)[0]
   const sewingMachine = store.facilities.find((f) => f.type === "sewingMachine")
@@ -79,8 +79,8 @@ export default function CraftPage() {
 
   function handleCraft() {
     if (!selectedDesign || !canAfford) return
-    const result = store.craftItem(selectedDesign.id)
-    if (result) setCraftResult(result as { success: boolean; quality: Quality; scoreCap: number })
+    const result = store.craftItem(selectedDesign.id, costs)
+    if (result) setCraftResult(result as { success: boolean; quality: Quality; scoreCap: number; returnedMaterials?: Record<string, number> })
   }
 
   return (
@@ -129,9 +129,16 @@ export default function CraftPage() {
                   return (
                     <div key={mat} className="flex items-center justify-between">
                       <span className="text-sm">{MATERIAL_LABELS[mat] || mat}</span>
-                      <span className={`text-sm font-bold ${insufficient ? "text-red-400" : "text-gray-300"}`}>
-                        {have} / {qty}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-sm ${insufficient ? "text-red-400" : "text-gray-400"}`}>
+                          库存:{have}
+                        </span>
+                        <span className="text-gray-600">→</span>
+                        <span className={`text-sm font-bold ${insufficient ? "text-red-400" : "text-green-400"}`}>
+                          {insufficient ? "不足" : have - qty}
+                        </span>
+                        <span className="text-xs text-gray-600">(-{qty})</span>
+                      </div>
                     </div>
                   )
                 })}
@@ -167,7 +174,7 @@ export default function CraftPage() {
 
             <button onClick={handleCraft} disabled={!canAfford}
               className="btn-gold w-full disabled:opacity-40 disabled:cursor-not-allowed py-3 text-lg">
-              开始制作
+              {canAfford ? "开始制作" : "材料不足"}
             </button>
           </>
         )}
@@ -182,16 +189,23 @@ export default function CraftPage() {
                 </motion.div>
                 <QualityBadge quality={craftResult.quality} />
                 <p className="text-sm text-gray-400">评分上限：<span className="text-gold-400 font-bold">{craftResult.scoreCap}</span></p>
-                <div className="relative">
-                  <div className="gold-particles" />
-                  <Sparkles size={20} className="text-gold-400 animate-pulse" />
-                </div>
+                <p className="text-xs text-green-400">材料已扣除</p>
+                <Sparkles size={20} className="text-gold-400 animate-pulse" />
               </>
             ) : (
               <>
                 <Frown size={48} className="text-red-400" />
                 <p className="text-lg font-bold text-red-400">制作失败</p>
-                <p className="text-sm text-gray-400">返还30%材料</p>
+                <p className="text-sm text-gray-400">已返还30%材料</p>
+                {craftResult.returnedMaterials && (
+                  <div className="space-y-1">
+                    {Object.entries(craftResult.returnedMaterials).map(([mat, qty]) => (
+                      <p key={mat} className="text-xs text-green-400">
+                        +{qty} {MATERIAL_LABELS[mat] || mat}
+                      </p>
+                    ))}
+                  </div>
+                )}
               </>
             )}
             <button onClick={() => setCraftResult(null)} className="btn-gold mt-2">继续制作</button>

@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Heart, Wand2, Trophy, Swords, Clock } from "lucide-react";
+import { Heart, Wand2, Trophy, Swords, Clock, Coins, Star, Package, Scroll } from "lucide-react";
 import { useGameStore } from "@/store";
 import { calculateShowScore } from "@/engine";
+import type { FashionShow, ShowReward } from "@/types";
 
 const cardVar = {
   hidden: { opacity: 0, y: 20 },
@@ -20,7 +21,14 @@ function formatTime(ts: number) {
   return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
 }
 
-function ShowList({ onSelect }: { onSelect: (id: string) => void }) {
+const rewardConfig: Record<ShowReward["type"], { Icon: typeof Coins; color: string }> = {
+  coins: { Icon: Coins, color: "text-yellow-400" },
+  fame: { Icon: Star, color: "text-pink-400" },
+  fabric: { Icon: Package, color: "text-purple-400" },
+  blueprint: { Icon: Scroll, color: "text-blue-400" },
+};
+
+function ShowList({ onSelect, onViewResult }: { onSelect: (id: string) => void; onViewResult: (id: string) => void }) {
   const shows = useGameStore((s) => s.fashionShows);
   return (
     <div>
@@ -33,14 +41,27 @@ function ShowList({ onSelect }: { onSelect: (id: string) => void }) {
             </div>
             <div className="flex justify-between items-center mb-2">
               <span className="font-bold text-white text-lg">{show.opponentName}</span>
-              <span className="text-yellow-400 text-sm font-semibold">战力 {show.opponentPower}</span>
+              {show.completed ? (
+                <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${show.playerScore > show.opponentScore ? "bg-yellow-500/20 text-yellow-400" : "bg-red-500/20 text-red-400"}`}>
+                  已结算 · {show.playerScore > show.opponentScore ? "胜利" : "落败"}
+                </span>
+              ) : (
+                <span className="text-yellow-400 text-sm font-semibold">战力 {show.opponentPower}</span>
+              )}
             </div>
             <div className="flex gap-2 mb-4 flex-wrap">
               {show.judges.map((j) => (
                 <span key={j} className="text-xs px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300">{j}</span>
               ))}
             </div>
-            <button className="btn-gold w-full text-sm" onClick={() => onSelect(show.id)}>进入走秀</button>
+            {show.completed ? (
+              <div className="flex items-center justify-between">
+                <span className="text-gray-400 text-sm">{show.playerScore} vs {show.opponentScore}</span>
+                <button className="btn-gold text-sm px-4" onClick={() => onViewResult(show.id)}>查看结果</button>
+              </div>
+            ) : (
+              <button className="btn-gold w-full text-sm" onClick={() => onSelect(show.id)}>进入走秀</button>
+            )}
           </motion.div>
         ))}
       </div>
@@ -48,8 +69,8 @@ function ShowList({ onSelect }: { onSelect: (id: string) => void }) {
   );
 }
 
-function LiveShow({ showId, onSettle }: { showId: string; onSettle: (result: ShowResultData) => void }) {
-  const { studio, fashionShows, runShowStep, useShowSkill } = useGameStore();
+function LiveShow({ showId, onSettled }: { showId: string; onSettled: () => void }) {
+  const { studio, fashionShows, runShowStep, useShowSkill, settleShow } = useGameStore();
   const show = fashionShows.find((s) => s.id === showId)!;
 
   return (
@@ -120,46 +141,37 @@ function LiveShow({ showId, onSettle }: { showId: string; onSettle: (result: Sho
           const js = show.judges.length * 15 + show.modelStatus * 0.3;
           const ps = calculateShowScore(fi, av, js, totalImpact, 0);
           const os = show.opponentPower * (0.5 + Math.random() * 0.5);
-          onSettle({
+          settleShow(showId, {
             fashionIndexScore: Math.round(fi), audienceVoteScore: Math.round(av),
             judgeScore: Math.round(js), finalScore: ps,
             opponentScore: Math.round(os), win: ps > os, rewards: show.rewards,
           });
+          onSettled();
         }}>结算</button>
       </div>
     </div>
   );
 }
 
-interface ShowResultData {
-  fashionIndexScore: number;
-  audienceVoteScore: number;
-  judgeScore: number;
-  finalScore: number;
-  opponentScore: number;
-  win: boolean;
-  rewards: { type: string; name: string; value: number }[];
-}
-
-function ShowResult({ result, onBack }: { result: ShowResultData; onBack: () => void }) {
+function ShowResult({ show, onBack }: { show: FashionShow; onBack: () => void }) {
+  const win = show.playerScore > show.opponentScore;
   return (
     <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="space-y-4">
-      <div className={`card-dark p-6 text-center ${result.win ? "ring-2 ring-yellow-400" : "ring-2 ring-red-500"}`}>
-        <Trophy size={40} className={`mx-auto mb-2 ${result.win ? "text-yellow-400" : "text-red-400"}`} />
-        <div className={`text-3xl font-black ${result.win ? "text-yellow-400" : "text-red-400"}`}>
-          {result.win ? "胜利" : "落败"}
+      <div className={`card-dark p-6 text-center ${win ? "ring-2 ring-yellow-400" : "ring-2 ring-red-500"}`}>
+        <Trophy size={40} className={`mx-auto mb-2 ${win ? "text-yellow-400" : "text-red-400"}`} />
+        <div className={`text-3xl font-black ${win ? "text-yellow-400" : "text-red-400"}`}>
+          {win ? "胜利" : "落败"}
         </div>
-        <div className="text-gray-400 text-sm mt-1">
-          {result.finalScore} vs {result.opponentScore}
-        </div>
+        <div className="text-gray-400 text-sm mt-1">{show.playerScore} vs {show.opponentScore}</div>
       </div>
+
       <div className="card-dark p-5 space-y-3">
         <h3 className="section-title">评分明细</h3>
         {[
-          ["时尚指数分", result.fashionIndexScore],
-          ["观众投票分", result.audienceVoteScore],
-          ["评委分", result.judgeScore],
-          ["最终评分", result.finalScore],
+          ["时尚指数分", show.fashionIndexScore],
+          ["观众投票分", show.audienceVoteScore],
+          ["评委分", show.judgeScore],
+          ["最终评分", show.playerScore],
         ].map(([label, val]) => (
           <div key={label} className="flex justify-between text-sm">
             <span className="text-gray-400">{label}</span>
@@ -167,15 +179,19 @@ function ShowResult({ result, onBack }: { result: ShowResultData; onBack: () => 
           </div>
         ))}
       </div>
-      {result.rewards.length > 0 && (
+
+      {show.rewards.length > 0 && (
         <div className="card-dark p-5 space-y-2">
           <h3 className="section-title">奖励</h3>
-          {result.rewards.map((r, i) => (
-            <div key={i} className="flex justify-between text-sm">
-              <span className="text-yellow-400">{r.name}</span>
-              <span className="text-white">×{r.value}</span>
-            </div>
-          ))}
+          {show.rewards.map((r, i) => {
+            const { Icon, color } = rewardConfig[r.type];
+            return (
+              <div key={i} className="flex items-center justify-between text-sm">
+                <span className={`flex items-center gap-2 ${color}`}><Icon size={16} /> {r.name}</span>
+                <span className="text-white">×{r.value}</span>
+              </div>
+            );
+          })}
         </div>
       )}
       <button className="btn-gold w-full text-sm" onClick={onBack}>返回列表</button>
@@ -185,23 +201,27 @@ function ShowResult({ result, onBack }: { result: ShowResultData; onBack: () => 
 
 export default function ShowPage() {
   const [selectedShow, setSelectedShow] = useState<string | null>(null);
-  const [result, setResult] = useState<ShowResultData | null>(null);
+  const [viewingResult, setViewingResult] = useState<string | null>(null);
+  const fashionShows = useGameStore((s) => s.fashionShows);
+  const resultShow = viewingResult ? fashionShows.find((s) => s.id === viewingResult) : null;
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
       <AnimatePresence mode="wait">
-        {!selectedShow && !result && (
-          <motion.div key="list" exit={{ opacity: 0 }}><ShowList onSelect={(id) => setSelectedShow(id)} /></motion.div>
-        )}
-        {selectedShow && !result && (
-          <motion.div key="live" exit={{ opacity: 0 }}>
-            <button className="text-sm text-gray-400 hover:text-white mb-3 transition-colors" onClick={() => setSelectedShow(null)}>← 返回列表</button>
-            <LiveShow showId={selectedShow} onSettle={(r) => setResult(r)} />
+        {!selectedShow && !viewingResult && (
+          <motion.div key="list" exit={{ opacity: 0 }}>
+            <ShowList onSelect={(id) => setSelectedShow(id)} onViewResult={(id) => setViewingResult(id)} />
           </motion.div>
         )}
-        {result && (
+        {selectedShow && !viewingResult && (
+          <motion.div key="live" exit={{ opacity: 0 }}>
+            <button className="text-sm text-gray-400 hover:text-white mb-3 transition-colors" onClick={() => setSelectedShow(null)}>← 返回列表</button>
+            <LiveShow showId={selectedShow} onSettled={() => { setViewingResult(selectedShow); setSelectedShow(null); }} />
+          </motion.div>
+        )}
+        {viewingResult && resultShow && (
           <motion.div key="result" exit={{ opacity: 0 }}>
-            <ShowResult result={result} onBack={() => { setResult(null); setSelectedShow(null); }} />
+            <ShowResult show={resultShow} onBack={() => setViewingResult(null)} />
           </motion.div>
         )}
       </AnimatePresence>

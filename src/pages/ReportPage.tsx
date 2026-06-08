@@ -1,3 +1,4 @@
+import { useState } from "react"
 import { motion } from "framer-motion"
 import { useGameStore } from "@/store"
 import { MOCK_REPORT_DATA } from "@/data/mock"
@@ -29,7 +30,7 @@ const LINE_COLORS = ["#D4AF37", "#FF2D78", "#00D4FF"]
 
 function Heatmap() {
   return (
-    <div>
+    <div id="report-heatmap">
       <h2 className="section-title">活跃热力图</h2>
       <motion.div custom={0} variants={fadeIn} initial="hidden" animate="visible" className="card-dark p-4">
         <div className="grid grid-cols-7 gap-2">
@@ -47,7 +48,7 @@ function Heatmap() {
 
 function GrowthCurves() {
   return (
-    <div>
+    <div id="report-growth">
       <h2 className="section-title">员工成长曲线</h2>
       <motion.div custom={1} variants={fadeIn} initial="hidden" animate="visible" className="card-dark p-4">
         <ResponsiveContainer width="100%" height={220}>
@@ -68,7 +69,7 @@ function GrowthCurves() {
 
 function IncomeTrend() {
   return (
-    <div>
+    <div id="report-income">
       <h2 className="section-title">收入趋势</h2>
       <motion.div custom={2} variants={fadeIn} initial="hidden" animate="visible" className="card-dark p-4">
         <ResponsiveContainer width="100%" height={220}>
@@ -94,7 +95,7 @@ function IncomeTrend() {
 
 function RadarSection() {
   return (
-    <div>
+    <div id="report-radar">
       <h2 className="section-title">综合能力雷达</h2>
       <motion.div custom={3} variants={fadeIn} initial="hidden" animate="visible" className="card-dark p-4">
         <ResponsiveContainer width="100%" height={260}>
@@ -109,8 +110,127 @@ function RadarSection() {
   )
 }
 
+function buildHeatmapSvg() {
+  const cols = 7
+  const size = 40
+  const gap = 4
+  const rows = Math.ceil(MOCK_REPORT_DATA.heatmap.length / cols)
+  const w = cols * (size + gap) + gap
+  const h = rows * (size + gap) + gap
+  let cells = ""
+  MOCK_REPORT_DATA.heatmap.forEach((d, i) => {
+    const x = (i % cols) * (size + gap) + gap
+    const y = Math.floor(i / cols) * (size + gap) + gap
+    cells += `<rect x="${x}" y="${y}" width="${size}" height="${size}" rx="4" fill="${heatmapColor(d.value)}"/>`
+    cells += `<text x="${x + size / 2}" y="${y + size / 2 + 4}" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-size="11">${d.day}</text>`
+  })
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">${cells}</svg>`
+}
+
+function buildGrowthSvg() {
+  const w = 500, h = 220, pad = 40
+  const data = growthData
+  const maxVal = Math.max(...MOCK_REPORT_DATA.growthCurves.flatMap((c) => c.data))
+  const xStep = (w - pad * 2) / (data.length - 1)
+  let lines = MOCK_REPORT_DATA.growthCurves.map((c, ci) => {
+    const points = c.data.map((v, i) => `${pad + i * xStep},${h - pad - (v / maxVal) * (h - pad * 2)}`).join(" ")
+    return `<polyline points="${points}" fill="none" stroke="${LINE_COLORS[ci]}" stroke-width="2"/>`
+  }).join("")
+  let xLabels = data.map((_, i) => `<text x="${pad + i * xStep}" y="${h - 8}" text-anchor="middle" fill="#666" font-size="11">${`W${i + 1}`}</text>`).join("")
+  let legend = MOCK_REPORT_DATA.growthCurves.map((c, ci) =>
+    `<text x="${pad + ci * 80}" y="16" fill="${LINE_COLORS[ci]}" font-size="12">${c.name}</text>`
+  ).join("")
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">${legend}${lines}${xLabels}</svg>`
+}
+
+function buildIncomeSvg() {
+  const w = 500, h = 220, pad = 40
+  const data = MOCK_REPORT_DATA.incomeTrend
+  const maxVal = Math.max(...data.map((d) => Math.max(d.income, d.expense))) * 1.1
+  const xStep = (w - pad * 2) / (data.length - 1)
+  const toPoint = (key: "income" | "expense", i: number) => `${pad + i * xStep},${h - pad - (data[i][key] / maxVal) * (h - pad * 2)}`
+  const incomePoints = data.map((_, i) => toPoint("income", i)).join(" ")
+  const expensePoints = data.map((_, i) => toPoint("expense", i)).join(" ")
+  const areaPath = `M${incomePoints} L${pad + (data.length - 1) * xStep},${h - pad} L${pad},${h - pad} Z`
+  let xLabels = data.map((d, i) => `<text x="${pad + i * xStep}" y="${h - 8}" text-anchor="middle" fill="#666" font-size="11">${d.week}</text>`).join("")
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">
+    <path d="${areaPath}" fill="rgba(212,175,55,0.15)"/>
+    <polyline points="${incomePoints}" fill="none" stroke="#D4AF37" stroke-width="2"/>
+    <polyline points="${expensePoints}" fill="none" stroke="#FF2D78" stroke-width="1.5" stroke-dasharray="4 2"/>
+    <text x="${pad}" y="16" fill="#D4AF37" font-size="12">收入</text>
+    <text x="${pad + 60}" y="16" fill="#FF2D78" font-size="12">支出</text>
+    ${xLabels}
+  </svg>`
+}
+
+function buildRadarSvg() {
+  const cx = 150, cy = 130, r = 100
+  const data = MOCK_REPORT_DATA.radarData
+  const n = data.length
+  const angleStep = (2 * Math.PI) / n
+  const offset = -Math.PI / 2
+  const pt = (i: number, ratio: number) => {
+    const a = offset + i * angleStep
+    return `${cx + Math.cos(a) * r * ratio},${cy + Math.sin(a) * r * ratio}`
+  }
+  let grids = [0.25, 0.5, 0.75, 1].map((ratio) =>
+    `<polygon points="${data.map((_, i) => pt(i, ratio)).join(" ")}" fill="none" stroke="#2A2A45" stroke-width="0.5"/>`
+  ).join("")
+  let axes = data.map((_, i) => `<line x1="${cx}" y1="${cy}" x2="${pt(i, 1).split(",")[0]}" y2="${pt(i, 1).split(",")[1]}" stroke="#2A2A45" stroke-width="0.5"/>`).join("")
+  let dataPoints = data.map((d, i) => pt(i, d.value / 100)).join(" ")
+  let labels = data.map((d, i) => {
+    const a = offset + i * angleStep
+    const lx = cx + Math.cos(a) * (r + 18)
+    const ly = cy + Math.sin(a) * (r + 18)
+    return `<text x="${lx}" y="${ly + 4}" text-anchor="middle" fill="#999" font-size="11">${d.axis}</text>`
+  }).join("")
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="260">${grids}${axes}<polygon points="${dataPoints}" fill="rgba(212,175,55,0.25)" stroke="#D4AF37" stroke-width="2"/>${labels}</svg>`
+}
+
+function exportReport(studioName: string) {
+  const now = new Date()
+  const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${studioName}_运营报告_${dateStr}</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:#0a0a1a;color:#e0e0e0;font-family:system-ui,-apple-system,sans-serif;padding:32px;max-width:800px;margin:0 auto}
+  h1{color:#D4AF37;text-align:center;margin-bottom:8px;font-size:24px}
+  .date{text-align:center;color:#666;margin-bottom:32px;font-size:14px}
+  h2{color:#D4AF37;font-size:18px;margin:28px 0 12px;border-left:3px solid #D4AF37;padding-left:10px}
+  .chart-wrap{background:#12122a;border-radius:12px;padding:20px;margin-bottom:16px;display:flex;justify-content:center}
+  .row{display:flex;gap:24px;flex-wrap:wrap;justify-content:center}
+  .row>div{flex:1;min-width:280px}
+  svg{max-width:100%;height:auto}
+</style></head><body>
+<h1>${studioName}</h1>
+<div class="date">运营报告 · ${dateStr}</div>
+<h2>活跃热力图</h2>
+<div class="chart-wrap">${buildHeatmapSvg()}</div>
+<h2>员工成长曲线</h2>
+<div class="chart-wrap">${buildGrowthSvg()}</div>
+<h2>收入趋势</h2>
+<div class="chart-wrap">${buildIncomeSvg()}</div>
+<h2>综合能力雷达</h2>
+<div class="chart-wrap">${buildRadarSvg()}</div>
+</body></html>`
+  const blob = new Blob([html], { type: "text/html;charset=utf-8" })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement("a")
+  a.href = url
+  a.download = `${studioName}_运营报告_${dateStr}.html`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 export default function ReportPage() {
-  useGameStore()
+  const studioName = useGameStore((s) => s.studio.name)
+  const [toast, setToast] = useState(false)
+
+  const handleExport = () => {
+    exportReport(studioName)
+    setToast(true)
+    setTimeout(() => setToast(false), 2000)
+  }
 
   return (
     <div className="space-y-8 p-6 max-w-6xl mx-auto">
@@ -119,8 +239,13 @@ export default function ReportPage() {
       <IncomeTrend />
       <RadarSection />
       <div className="text-center">
-        <button onClick={() => alert("PDF导出功能开发中")} className="btn-gold">导出PDF报告</button>
+        <button onClick={handleExport} className="btn-gold">导出PDF报告</button>
       </div>
+      {toast && (
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 bg-emerald-600 text-white px-6 py-3 rounded-lg shadow-lg text-sm z-50 animate-bounce">
+          报告已导出
+        </div>
+      )}
     </div>
   )
 }

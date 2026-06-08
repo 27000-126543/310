@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Search, ShoppingBag, Tag, History, Coins, CheckCircle, X } from "lucide-react"
+import { Search, Coins, CheckCircle, X, TrendingUp } from "lucide-react"
 import { useGameStore } from "@/store"
 import { QUALITY_LABELS, QUALITY_COLORS } from "@/types"
 import type { Quality, Transaction } from "@/types"
@@ -25,29 +25,30 @@ export default function TradePage() {
   const [prices, setPrices] = useState<Record<string, string>>({})
   const store = useGameStore()
 
-  const handlePurchase = (item: Transaction) => {
-    useGameStore.setState((state) => ({
-      marketItems: state.marketItems.map((m) =>
-        m.id === item.id ? { ...m, completed: true, buyerId: state.studio.id } : m
-      ),
-      transactions: [...state.transactions, { ...item, completed: true, buyerId: state.studio.id }],
-      studio: { ...state.studio, coins: state.studio.coins - item.price },
-    }))
-    setConfirmItem(null)
-  }
-
   const filteredMarket = store.marketItems.filter(
     (m) => !m.completed && m.itemName.includes(search)
   )
   const completedTx = store.transactions.filter((t) => t.completed)
 
-  const suggestedRange = (fi: number) => ({
-    min: Math.round(fi * 15),
-    max: Math.round(fi * 30),
-  })
+  const latestTrend = store.trendEvents[0]
+  const trendActive = latestTrend && Date.now() - latestTrend.timestamp < 3600000
 
   return (
     <motion.div {...fadeUp} className="p-4 pb-16 space-y-4">
+      {trendActive && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-gradient-to-r from-purple-600/40 via-pink-500/40 to-orange-400/40 border border-purple-400/30 rounded-xl p-3 flex items-center gap-2"
+        >
+          <TrendingUp size={18} className="text-pink-300 flex-shrink-0" />
+          <div className="min-w-0">
+            <div className="font-medium text-sm text-pink-200">{latestTrend.name}</div>
+            <div className="text-xs text-purple-200/80 truncate">{latestTrend.description}</div>
+          </div>
+        </motion.div>
+      )}
+
       <div className="flex gap-2">
         {TABS.map((tab, i) => (
           <button
@@ -106,7 +107,7 @@ export default function TradePage() {
           <motion.div key="list" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }}>
             <motion.div variants={stagger} initial="initial" animate="animate" className="grid grid-cols-2 gap-3">
               {store.craftedItems.map((item) => {
-                const range = suggestedRange(item.fashionIndex)
+                const suggested = store.getSuggestedPrice("clothing", item.quality)
                 return (
                   <motion.div key={item.id} variants={fadeUp} className="card-dark">
                     <div className="flex items-center justify-between mb-2">
@@ -114,8 +115,10 @@ export default function TradePage() {
                       <QualityBadge quality={item.quality} />
                     </div>
                     <div className="text-xs text-gray-400 mb-1">时尚指数: {item.fashionIndex}</div>
-                    <div className="text-xs text-gray-600 mb-3">
-                      建议价: {range.min.toLocaleString()} ~ {range.max.toLocaleString()}
+                    <div className="text-xs space-y-0.5 mb-2">
+                      <div className="text-gold-400/80">近7天均价: {suggested.avg.toLocaleString()}</div>
+                      <div className="text-green-400/70">建议最低: {suggested.min.toLocaleString()}</div>
+                      <div className="text-orange-400/70">建议最高: {suggested.max.toLocaleString()}</div>
                     </div>
                     <div className="flex gap-2">
                       <input
@@ -223,7 +226,14 @@ export default function TradePage() {
                 <button onClick={() => setConfirmItem(null)} className="btn-outline-gold flex-1 text-sm">
                   取消
                 </button>
-                <button onClick={() => handlePurchase(confirmItem)} className="btn-gold flex-1 text-sm">
+                <button
+                  onClick={() => {
+                    const ok = store.purchaseMarketItem(confirmItem.id)
+                    if (!ok) alert("金币不足")
+                    setConfirmItem(null)
+                  }}
+                  className="btn-gold flex-1 text-sm"
+                >
                   确认
                 </button>
               </div>

@@ -1,9 +1,9 @@
 import { useNavigate } from "react-router-dom"
 import { motion } from "framer-motion"
-import { Palette, Scissors, Sparkles, ArrowLeftRight, ShoppingBag, Zap, Star, Pen, Users } from "lucide-react"
+import { Palette, Scissors, Sparkles, ArrowLeftRight, ShoppingBag, Zap, Star, Pen, Users, TrendingUp } from "lucide-react"
 import { useGameStore } from "@/store"
 import { STYLE_LABELS } from "@/types"
-import type { Activity } from "@/types"
+import type { Activity, StyleType } from "@/types"
 
 const container = { initial: { opacity: 0 }, animate: { opacity: 1, transition: { staggerChildren: 0.08 } } }
 const item = { initial: { opacity: 0, y: 20 }, animate: { opacity: 1, y: 0 } }
@@ -32,7 +32,9 @@ const ACTIONS = [
 
 export default function Dashboard() {
   const navigate = useNavigate()
-  const { studio, designs, todos, activities, completeTodo } = useGameStore()
+  const { studio, designs, todos, activities, trendEvents, completeTodo } = useGameStore()
+  const latestTrend = trendEvents.length > 0 && (Date.now() - trendEvents[0].timestamp < 3600000) ? trendEvents[0] : null
+  const TREND_STYLE_COLOR: Record<StyleType, string> = { ancient: "border-red-400/50 bg-red-500/10", cyber: "border-cyan-400/50 bg-cyan-500/10", nature: "border-green-400/50 bg-green-500/10" }
 
   return (
     <motion.div variants={container} initial="initial" animate="animate" className="space-y-5 p-4 max-w-lg mx-auto">
@@ -67,6 +69,19 @@ export default function Dashboard() {
           </button>
         ))}
       </motion.div>
+
+      {latestTrend && (
+        <motion.div variants={item} className={`card-dark border ${TREND_STYLE_COLOR[latestTrend.style]} p-3 flex items-center gap-3`}>
+          <TrendingUp size={18} className="text-gold-400 flex-shrink-0" />
+          <div>
+            <p className="text-sm font-bold text-gold-400">{latestTrend.name}</p>
+            <p className="text-xs text-gray-400">{latestTrend.description}</p>
+          </div>
+          <span className="text-xs px-2 py-0.5 rounded-full bg-gold-400/20 text-gold-400 ml-auto flex-shrink-0">
+            {STYLE_LABELS[latestTrend.style]}
+          </span>
+        </motion.div>
+      )}
 
       <motion.div variants={item}>
         <h2 className="section-title">今日待办</h2>

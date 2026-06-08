@@ -3,7 +3,8 @@ import { motion, AnimatePresence } from "framer-motion"
 import { Search, Coins, CheckCircle, X, TrendingUp } from "lucide-react"
 import { useGameStore } from "@/store"
 import { QUALITY_LABELS, QUALITY_COLORS } from "@/types"
-import type { Quality, Transaction, Blueprint } from "@/types"
+import type { Quality, Transaction, Blueprint, ItemType } from "@/types"
+import { ALL_BLUEPRINTS } from "@/data/mock"
 
 const TABS = ["市场浏览", "上架出售", "成交记录"]
 const fadeUp = { initial: { opacity: 0, y: 20 }, animate: { opacity: 1, y: 0 } }
@@ -21,12 +22,13 @@ function formatTime(ts: number) {
 export default function TradePage() {
   const [activeTab, setActiveTab] = useState(0)
   const [search, setSearch] = useState("")
+  const [itemFilter, setItemFilter] = useState<ItemType | "all">("all")
   const [confirmItem, setConfirmItem] = useState<Transaction | null>(null)
   const [prices, setPrices] = useState<Record<string, string>>({})
   const store = useGameStore()
 
   const filteredMarket = store.marketItems.filter(
-    (m) => !m.completed && m.itemName.includes(search)
+    (m) => !m.completed && m.itemName.includes(search) && (itemFilter === "all" || m.itemType === itemFilter)
   )
   const completedTx = store.transactions.filter((t) => t.completed)
 
@@ -77,25 +79,55 @@ export default function TradePage() {
                 className="w-full bg-dark-700 border border-dark-500/30 rounded-lg pl-10 pr-4 py-2.5 text-sm outline-none focus:border-gold-400/50 transition-colors placeholder:text-gray-600"
               />
             </div>
-            <motion.div variants={stagger} initial="initial" animate="animate" className="grid grid-cols-2 gap-3">
-              {filteredMarket.map((item) => (
-                <motion.div key={item.id} variants={fadeUp} className="card-dark hover:border-gold-400/30 transition-colors">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="font-medium text-sm">{item.itemName}</span>
-                    {item.quality && <QualityBadge quality={item.quality as Quality} />}
-                  </div>
-                  <div className="flex items-center gap-1 text-gold-400 font-bold mb-1">
-                    <Coins size={14} /> {item.price.toLocaleString()}
-                  </div>
-                  <div className="text-xs text-gray-500 mb-1">卖家: {item.sellerName}</div>
-                  <div className="text-xs text-gray-600 mb-3">
-                    建议价: {item.suggestedMin.toLocaleString()} ~ {item.suggestedMax.toLocaleString()}
-                  </div>
-                  <button onClick={() => setConfirmItem(item)} className="btn-gold w-full text-sm">
-                    购买
-                  </button>
-                </motion.div>
+            <div className="flex gap-2">
+              {([["all", "全部"], ["blueprint", "图纸"], ["clothing", "成衣"]] as const).map(([value, label]) => (
+                <button
+                  key={value}
+                  onClick={() => setItemFilter(value)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
+                    itemFilter === value
+                      ? "bg-gold-gradient text-dark-900"
+                      : "bg-dark-700 text-gray-400 hover:text-gray-200"
+                  }`}
+                >
+                  {label}
+                </button>
               ))}
+            </div>
+            <motion.div variants={stagger} initial="initial" animate="animate" className="grid grid-cols-2 gap-3">
+              {filteredMarket.map((item) => {
+                const isBlueprint = item.itemType === "blueprint"
+                const bpSuggested = isBlueprint ? store.getSuggestedPrice("blueprint", item.quality as Quality) : null
+                return (
+                  <motion.div key={item.id} variants={fadeUp} className="card-dark hover:border-gold-400/30 transition-colors">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-1.5">
+                        {isBlueprint && (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-500/30 text-purple-300 border border-purple-400/30">图纸</span>
+                        )}
+                        <span className="font-medium text-sm">{item.itemName}</span>
+                      </div>
+                      {item.quality && <QualityBadge quality={item.quality as Quality} />}
+                    </div>
+                    <div className="flex items-center gap-1 text-gold-400 font-bold mb-1">
+                      <Coins size={14} /> {item.price.toLocaleString()}
+                    </div>
+                    <div className="text-xs text-gray-500 mb-1">卖家: {item.sellerName}</div>
+                    <div className="text-xs text-gray-600 mb-1">
+                      建议价: {item.suggestedMin.toLocaleString()} ~ {item.suggestedMax.toLocaleString()}
+                    </div>
+                    {isBlueprint && bpSuggested && (
+                      <div className="text-xs text-gold-400/80 mb-1">
+                        近7天均价: {bpSuggested.avg.toLocaleString()}
+                      </div>
+                    )}
+                    <div className="mb-3" />
+                    <button onClick={() => setConfirmItem(item)} className="btn-gold w-full text-sm">
+                      购买
+                    </button>
+                  </motion.div>
+                )
+              })}
               {filteredMarket.length === 0 && (
                 <div className="col-span-2 text-center text-gray-600 py-10">暂无在售物品</div>
               )}
@@ -226,6 +258,9 @@ export default function TradePage() {
                   <CheckCircle size={16} className="text-green-400 flex-shrink-0" />
                   <div>
                     <div className="flex items-center gap-2">
+                      {tx.itemType === "blueprint" && (
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-500/30 text-purple-300 border border-purple-400/30">图纸</span>
+                      )}
                       <span className="font-medium text-sm">{tx.itemName}</span>
                       {tx.quality && <QualityBadge quality={tx.quality as Quality} />}
                     </div>

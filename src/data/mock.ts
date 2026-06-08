@@ -1,4 +1,4 @@
-import type { Studio, Staff, Fabric, ColorOption, Accessory, Design, CraftedItem, Facility, Transaction, FashionShow, TrendEvent, TodoItem, Activity, ApprovalRequest, StyleType } from "@/types"
+import type { Studio, Staff, Fabric, ColorOption, Accessory, Design, CraftedItem, Blueprint, Facility, Transaction, FashionShow, TrendEvent, TodoItem, Activity, ApprovalRequest, StyleType, Quality } from "@/types"
 
 export const MOCK_STUDIO: Studio = {
   id: "studio-1",
@@ -90,6 +90,21 @@ export const MOCK_CRAFTED_ITEMS: CraftedItem[] = [
     id: "ci2", designId: "d2", designName: "云中锦书", quality: "fine", scoreCap: 75,
     fashionIndex: 52, affixes: [], effects: [], studioId: "studio-1",
   },
+]
+
+export const ALL_BLUEPRINTS: Blueprint[] = [
+  { id: "bp-c1", name: "素绢便服图纸", quality: "common", rarity: 1, source: "初始", styleAffinity: ["ancient"], bonus: 5, description: "简约古风便服，入门首选" },
+  { id: "bp-c2", name: "棉麻短衫图纸", quality: "common", rarity: 1, source: "初始", styleAffinity: ["nature"], bonus: 5, description: "自然风棉麻短衫，轻盈舒适" },
+  { id: "bp-c3", name: "基础光衣图纸", quality: "common", rarity: 1, source: "初始", styleAffinity: ["cyber"], bonus: 5, description: "赛博基础款，日常百搭" },
+  { id: "bp-f1", name: "古韵锦衣图纸", quality: "fine", rarity: 2, source: "初始", styleAffinity: ["ancient"], bonus: 12, description: "锦缎华服，古韵悠长" },
+  { id: "bp-f2", name: "翠叶轻纱图纸", quality: "fine", rarity: 2, source: "初始", styleAffinity: ["nature"], bonus: 12, description: "翠叶轻纱，清新自然" },
+  { id: "bp-f3", name: "霓虹外套图纸", quality: "fine", rarity: 2, source: "初始", styleAffinity: ["cyber"], bonus: 12, description: "霓虹光线外套，赛博街头风" },
+  { id: "bp-f4", name: "水墨长袍图纸", quality: "fine", rarity: 2, source: "初始", styleAffinity: ["ancient", "nature"], bonus: 15, description: "水墨山水，双风格融合" },
+  { id: "bp-e1", name: "极光披风图纸", quality: "epic", rarity: 4, source: "图纸图鉴", styleAffinity: ["cyber", "nature"], bonus: 28, description: "极光幻彩披风，流光溢彩" },
+  { id: "bp-e2", name: "星河战袍图纸", quality: "epic", rarity: 4, source: "图纸图鉴", styleAffinity: ["cyber", "ancient"], bonus: 28, description: "星河璀璨，战袍加身" },
+  { id: "bp-e3", name: "幻影流光图纸", quality: "epic", rarity: 4, source: "图纸图鉴", styleAffinity: ["cyber"], bonus: 25, description: "幻影迷踪，流光飞舞" },
+  { id: "bp-l1", name: "极光绽放图纸", quality: "legendary", rarity: 5, source: "图纸图鉴", styleAffinity: ["cyber", "nature", "ancient"], bonus: 45, description: "极光绽放，三系通用终极图纸" },
+  { id: "bp-l2", name: "虚空裂隙图纸", quality: "legendary", rarity: 5, source: "图纸图鉴", styleAffinity: ["cyber", "ancient"], bonus: 42, description: "虚空裂隙，超越常理的传说" },
 ]
 
 export const MOCK_FACILITIES: Facility[] = [

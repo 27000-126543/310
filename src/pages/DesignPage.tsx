@@ -1,9 +1,10 @@
 import { useState } from "react"
 import { motion } from "framer-motion"
-import { Star, Sparkles, Palette, Shirt, Gem } from "lucide-react"
+import { Star, Sparkles, Palette, Shirt, Gem, ScrollText, BookOpen } from "lucide-react"
 import { useGameStore } from "@/store"
-import { AFFIX_LABELS, AFFIX_COLORS } from "@/types"
-import type { AffixType } from "@/types"
+import { ALL_BLUEPRINTS } from "@/data/mock"
+import { AFFIX_LABELS, AFFIX_COLORS, QUALITY_LABELS, QUALITY_COLORS, STYLE_LABELS } from "@/types"
+import type { AffixType, Blueprint, Quality, StyleType } from "@/types"
 
 const fadeUp = { initial: { opacity: 0, y: 20 }, animate: { opacity: 1, y: 0 } }
 
@@ -36,11 +37,22 @@ function FashionGauge({ value }: { value: number }) {
   )
 }
 
+const QUALITY_ORDER: Quality[] = ["legendary", "epic", "fine", "common"]
+
 export default function DesignPage() {
   const store = useGameStore()
   const [designName, setDesignName] = useState("")
 
   const hasPreview = store.selectedFabric && store.selectedColor
+
+  const codex = store.getBlueprintCodex()
+
+  const codexByQuality = QUALITY_ORDER.map((q) => ({
+    quality: q,
+    label: QUALITY_LABELS[q],
+    color: QUALITY_COLORS[q],
+    entries: codex.filter((c) => c.blueprint.quality === q),
+  })).filter((g) => g.entries.length > 0)
 
   return (
     <div className="grid grid-cols-12 gap-4 p-4 min-h-screen">
@@ -59,6 +71,37 @@ export default function DesignPage() {
               </button>
             ))}
           </div>
+        </div>
+
+        <div className="card-dark">
+          <h2 className="section-title flex items-center gap-2"><ScrollText size={18} />图纸选择</h2>
+          {store.blueprints.length > 0 ? (
+            <div className="space-y-1.5">
+              {store.blueprints.map((bp) => {
+                const selected = store.selectedBlueprint?.id === bp.id
+                return (
+                  <button key={bp.id}
+                    onClick={() => store.selectBlueprint(selected ? null : bp)}
+                    className={`w-full flex items-center justify-between p-2 rounded-lg border text-left transition-all ${
+                      selected ? "border-gold-400 shadow-lg shadow-gold-400/20 bg-gold-400/5" : "border-dark-500/30 hover:border-dark-500/60"}`}>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-[10px] px-1.5 py-0.5 rounded font-bold shrink-0"
+                        style={{ color: QUALITY_COLORS[bp.quality], backgroundColor: QUALITY_COLORS[bp.quality] + "20" }}>
+                        {QUALITY_LABELS[bp.quality]}
+                      </span>
+                      <p className="text-xs font-medium truncate">{bp.name}</p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <RarityStars count={bp.rarity} />
+                      <span className="text-xs text-gold-400">+{bp.bonus}</span>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          ) : (
+            <p className="text-xs text-gray-600 text-center py-2">暂无图纸</p>
+          )}
         </div>
 
         <div className="card-dark">
@@ -122,7 +165,14 @@ export default function DesignPage() {
                   </motion.div>
                 ))}
               </div>
-              <p className="text-sm text-gray-400">{store.selectedFabric!.name} · {store.selectedColor!.name}</p>
+              <div className="text-center">
+                <p className="text-sm text-gray-400">{store.selectedFabric!.name} · {store.selectedColor!.name}</p>
+                {store.selectedBlueprint && (
+                  <p className="text-xs mt-1" style={{ color: QUALITY_COLORS[store.selectedBlueprint.quality] }}>
+                    📜 {store.selectedBlueprint.name}
+                  </p>
+                )}
+              </div>
             </div>
           ) : (
             <p className="relative z-10 text-gray-500">选择面料和色彩开始设计</p>
@@ -144,7 +194,49 @@ export default function DesignPage() {
         <div className="card-dark">
           <h2 className="section-title">时尚指数</h2>
           <FashionGauge value={store.currentFashionIndex} />
+          {store.selectedBlueprint && (
+            <div className="mt-3 px-2 py-1.5 rounded-lg bg-dark-700/50 border border-dark-500/20">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-gray-400">图纸加成</span>
+                <span className="text-sm font-bold text-gold-400">+{store.selectedBlueprint.bonus}</span>
+              </div>
+            </div>
+          )}
         </div>
+
+        {store.selectedBlueprint && (
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="card-dark">
+            <h2 className="section-title flex items-center gap-2"><ScrollText size={18} />图纸详情</h2>
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-bold">{store.selectedBlueprint.name}</span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded font-bold"
+                  style={{ color: QUALITY_COLORS[store.selectedBlueprint.quality], backgroundColor: QUALITY_COLORS[store.selectedBlueprint.quality] + "20" }}>
+                  {QUALITY_LABELS[store.selectedBlueprint.quality]}
+                </span>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-gray-400">稀有度</span>
+                <RarityStars count={store.selectedBlueprint.rarity} />
+              </div>
+              <div>
+                <span className="text-xs text-gray-400 mr-2">风格亲和</span>
+                <div className="inline-flex gap-1.5">
+                  {store.selectedBlueprint.styleAffinity.map((s) => (
+                    <span key={s} className="text-[10px] px-2 py-0.5 rounded-full bg-dark-600 border border-dark-500/30 text-gray-300">
+                      {STYLE_LABELS[s]}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-gray-400">加成</span>
+                <span className="text-sm font-bold text-gold-400">+{store.selectedBlueprint.bonus}</span>
+              </div>
+              <p className="text-xs text-gray-500 leading-relaxed">{store.selectedBlueprint.description}</p>
+            </div>
+          </motion.div>
+        )}
 
         <div className="card-dark">
           <h2 className="section-title">词缀概率</h2>
@@ -182,6 +274,41 @@ export default function DesignPage() {
           ) : (
             <p className="text-xs text-gray-600 text-center py-2">确认设计后随机触发</p>
           )}
+        </div>
+
+        <div className="card-dark max-h-64 overflow-y-auto">
+          <h2 className="section-title flex items-center gap-2"><BookOpen size={18} />图纸图鉴</h2>
+          <div className="space-y-3">
+            {codexByQuality.map((group) => (
+              <div key={group.quality}>
+                <div className="flex items-center gap-2 mb-1.5">
+                  <span className="text-[10px] px-1.5 py-0.5 rounded font-bold"
+                    style={{ color: group.color, backgroundColor: group.color + "20" }}>
+                    {group.label}
+                  </span>
+                  <div className="flex-1 h-px bg-dark-500/20" />
+                </div>
+                <div className="space-y-1">
+                  {group.entries.map(({ blueprint, status }) => (
+                    <div key={blueprint.id}
+                      className={`flex items-center justify-between py-1 px-2 rounded ${
+                        status === "unobtained" ? "opacity-40" : ""}`}>
+                      <span className="text-xs">{blueprint.name}</span>
+                      {status === "owned" && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-500/20 text-green-400 font-bold">已拥有</span>
+                      )}
+                      {status === "listed" && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-yellow-500/20 text-yellow-400 font-bold">已上架</span>
+                      )}
+                      {status === "unobtained" && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-500/20 text-gray-400 font-bold">未获得</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </motion.div>
     </div>

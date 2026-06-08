@@ -64,6 +64,8 @@ export interface Design {
   effects: string[]
   studioId: string
   createdAt: number
+  blueprintId?: string
+  blueprintName?: string
 }
 
 export interface CraftResult {
@@ -82,6 +84,9 @@ export interface Blueprint {
   quality: Quality
   rarity: number
   source: string
+  styleAffinity: StyleType[]
+  bonus: number
+  description: string
 }
 
 export interface CraftedItem {

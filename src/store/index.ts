@@ -1,6 +1,6 @@
 import { create } from "zustand"
 import type { Studio, Staff, Design, CraftedItem, Blueprint, Facility, Transaction, FashionShow, TrendEvent, TodoItem, Activity, ApprovalRequest, Fabric, ColorOption, Accessory, AffixType, Quality, ShowReward, StyleType } from "@/types"
-import { MOCK_STUDIO, MOCK_STAFF, MOCK_CANDIDATES, MOCK_DESIGNS, MOCK_CRAFTED_ITEMS, MOCK_FACILITIES, MOCK_TRANSACTIONS, MOCK_MARKET_ITEMS, MOCK_FASHION_SHOWS, MOCK_TREND_EVENTS, MOCK_TODOS, MOCK_ACTIVITIES, MOCK_APPROVALS, MOCK_FABRICS, MOCK_COLORS, MOCK_ACCESSORIES } from "@/data/mock"
+import { MOCK_STUDIO, MOCK_STAFF, MOCK_CANDIDATES, MOCK_DESIGNS, MOCK_CRAFTED_ITEMS, MOCK_FACILITIES, MOCK_TRANSACTIONS, MOCK_MARKET_ITEMS, MOCK_FASHION_SHOWS, MOCK_TREND_EVENTS, MOCK_TODOS, MOCK_ACTIVITIES, MOCK_APPROVALS, MOCK_FABRICS, MOCK_COLORS, MOCK_ACCESSORIES, ALL_BLUEPRINTS } from "@/data/mock"
 import { calculateTeamPower, calculateCraftSuccessRate, rollCraft, determineQuality, calculateScoreCap, calculateFashionIndex, calculateAffixProbability, rollAffixes, suggestPriceRange } from "@/engine"
 
 interface GameState {
@@ -25,6 +25,7 @@ interface GameState {
   selectedFabric: Fabric | null
   selectedColor: ColorOption | null
   selectedAccessories: Accessory[]
+  selectedBlueprint: Blueprint | null
   currentFashionIndex: number
   currentAffixProbs: Record<string, number>
   currentAffixes: string[]
@@ -35,6 +36,7 @@ interface GameState {
   setStaff: (staff: Staff[]) => void
   selectFabric: (fabric: Fabric) => void
   selectColor: (color: ColorOption) => void
+  selectBlueprint: (blueprint: Blueprint | null) => void
   toggleAccessory: (accessory: Accessory) => void
   calculateCurrentDesign: () => void
   confirmDesign: (name: string) => Design | null
@@ -52,6 +54,7 @@ interface GameState {
   purchaseMarketItem: (itemId: string) => boolean
   addTrendEvent: (event: TrendEvent) => void
   getSuggestedPrice: (itemType: string, quality?: Quality) => { min: number; max: number; avg: number }
+  getBlueprintCodex: () => { blueprint: Blueprint; status: "owned" | "listed" | "unobtained" }[]
 }
 
 export const useGameStore = create<GameState>((set, get) => ({
@@ -61,8 +64,9 @@ export const useGameStore = create<GameState>((set, get) => ({
   designs: MOCK_DESIGNS,
   craftedItems: MOCK_CRAFTED_ITEMS,
   blueprints: [
-    { id: "bp-init1", name: "极光披风图纸", quality: "epic" as Quality, rarity: 4, source: "初始图纸" },
-    { id: "bp-init2", name: "古韵锦衣图纸", quality: "fine" as Quality, rarity: 2, source: "初始图纸" },
+    ALL_BLUEPRINTS.find((b) => b.id === "bp-e1")!,
+    ALL_BLUEPRINTS.find((b) => b.id === "bp-f1")!,
+    ALL_BLUEPRINTS.find((b) => b.id === "bp-c1")!,
   ],
   facilities: MOCK_FACILITIES,
   transactions: MOCK_TRANSACTIONS,
@@ -79,6 +83,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   selectedFabric: null,
   selectedColor: null,
   selectedAccessories: [],
+  selectedBlueprint: null,
   currentFashionIndex: 0,
   currentAffixProbs: {},
   currentAffixes: [],
@@ -113,6 +118,11 @@ export const useGameStore = create<GameState>((set, get) => ({
     get().calculateCurrentDesign()
   },
 
+  selectBlueprint: (blueprint) => {
+    set({ selectedBlueprint: blueprint })
+    get().calculateCurrentDesign()
+  },
+
   toggleAccessory: (accessory) => {
     set((state) => {
       const exists = state.selectedAccessories.find((a) => a.id === accessory.id)
@@ -132,7 +142,8 @@ export const useGameStore = create<GameState>((set, get) => ({
     }
     const designer = state.staff.find((s) => s.role === "designer")
     const designerSkill = designer?.skillLevel || 1
-    const fi = calculateFashionIndex(state.selectedFabric, state.selectedColor, state.selectedAccessories, state.studio.style, designerSkill)
+    const blueprintBonus = state.selectedBlueprint?.bonus || 0
+    const fi = calculateFashionIndex(state.selectedFabric, state.selectedColor, state.selectedAccessories, state.studio.style, designerSkill) + blueprintBonus
     const probs = calculateAffixProbability(fi, state.selectedFabric.rarity)
     set({ currentFashionIndex: fi, currentAffixProbs: probs, currentAffixes: [] })
   },
@@ -142,7 +153,8 @@ export const useGameStore = create<GameState>((set, get) => ({
     if (!state.selectedFabric || !state.selectedColor) return null
     const designer = state.staff.find((s) => s.role === "designer")
     const designerSkill = designer?.skillLevel || 1
-    const fi = calculateFashionIndex(state.selectedFabric, state.selectedColor, state.selectedAccessories, state.studio.style, designerSkill)
+    const blueprintBonus = state.selectedBlueprint?.bonus || 0
+    const fi = calculateFashionIndex(state.selectedFabric, state.selectedColor, state.selectedAccessories, state.studio.style, designerSkill) + blueprintBonus
     const probs = calculateAffixProbability(fi, state.selectedFabric.rarity)
     const affixes = rollAffixs(probs)
     const effects = affixes.map((a) => {
@@ -160,12 +172,15 @@ export const useGameStore = create<GameState>((set, get) => ({
       effects,
       studioId: state.studio.id,
       createdAt: Date.now(),
+      blueprintId: state.selectedBlueprint?.id,
+      blueprintName: state.selectedBlueprint?.name,
     }
     set((state) => ({
       designs: [...state.designs, design],
       selectedFabric: null,
       selectedColor: null,
       selectedAccessories: [],
+      selectedBlueprint: null,
       currentFashionIndex: 0,
       currentAffixProbs: {},
       currentAffixes: [],
@@ -371,19 +386,12 @@ export const useGameStore = create<GameState>((set, get) => ({
         rewards.push({ type: "fabric", name: fabricName, value: 3, rarity: 4 })
       }
       if (rareFabricChance < 0.15) {
-        const bpNames = ["星河战袍图纸", "幻影流光图纸", "极光绽放图纸", "虚空裂隙图纸"]
-        const bpQualities: Quality[] = ["epic", "epic", "legendary", "legendary"]
-        const bpIdx = Math.floor(Math.random() * bpNames.length)
-        const bpName = bpNames[bpIdx]
-        const bpQuality = bpQualities[bpIdx]
-        rewards.push({ type: "blueprint", name: bpName, value: 1, rarity: 5 })
-        newBlueprints.push({
-          id: `bp-${Date.now()}`,
-          name: bpName,
-          quality: bpQuality,
-          rarity: 5,
-          source: `时装秀奖励 vs ${show.opponentName}`,
-        })
+        const epicBps = ALL_BLUEPRINTS.filter((b) => b.quality === "epic" || b.quality === "legendary")
+        const bp = epicBps[Math.floor(Math.random() * epicBps.length)]
+        rewards.push({ type: "blueprint", name: bp.name, value: 1, rarity: bp.rarity })
+        if (!newBlueprints.some((b) => b.id === bp.id)) {
+          newBlueprints.push({ ...bp, source: `时装秀奖励 vs ${show.opponentName}` })
+        }
       }
     } else {
       coinsEarned = 100 + Math.floor(Math.random() * 200)
@@ -437,13 +445,21 @@ export const useGameStore = create<GameState>((set, get) => ({
       }
 
       if (item.itemType === "blueprint") {
-        updates.blueprints = [...state.blueprints, {
-          id: `bp-${Date.now()}`,
-          name: item.itemName,
-          quality: item.quality || "fine",
-          rarity: item.quality === "legendary" ? 5 : item.quality === "epic" ? 4 : 3,
-          source: `交易中心购买`,
-        }]
+        const catalogBp = ALL_BLUEPRINTS.find((b) => b.name === item.itemName)
+        if (catalogBp && !state.blueprints.some((b) => b.id === catalogBp.id)) {
+          updates.blueprints = [...state.blueprints, { ...catalogBp, source: "交易中心购买" }]
+        } else if (!catalogBp) {
+          updates.blueprints = [...state.blueprints, {
+            id: `bp-${Date.now()}`,
+            name: item.itemName,
+            quality: item.quality || "fine",
+            rarity: item.quality === "legendary" ? 5 : item.quality === "epic" ? 4 : 3,
+            source: "交易中心购买",
+            styleAffinity: ["cyber"],
+            bonus: item.quality === "legendary" ? 40 : item.quality === "epic" ? 25 : 10,
+            description: `${item.itemName}，来自交易市场`,
+          }]
+        }
       }
 
       if (shouldTriggerTrend) {
@@ -507,6 +523,20 @@ export const useGameStore = create<GameState>((set, get) => ({
     const mult = quality ? qualityMult[quality] : 1
     const avg = Math.round(base * mult)
     return { min: Math.round(avg * 0.7), max: Math.round(avg * 1.3), avg }
+  },
+
+  getBlueprintCodex: () => {
+    const state = get()
+    const ownedIds = new Set(state.blueprints.map((b) => b.id))
+    const listedIds = new Set(
+      state.marketItems
+        .filter((m) => m.itemType === "blueprint" && !m.completed && m.sellerId === state.studio.id)
+        .map((m) => m.itemId)
+    )
+    return ALL_BLUEPRINTS.map((bp) => ({
+      blueprint: bp,
+      status: ownedIds.has(bp.id) ? "owned" as const : listedIds.has(bp.id) ? "listed" as const : "unobtained" as const,
+    }))
   },
 }))
 

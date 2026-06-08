@@ -97,6 +97,9 @@ export default function CraftPage() {
                   <span className="font-medium text-sm">{d.name}</span>
                   <span className="text-xs text-gold-400">FI {d.fashionIndex}</span>
                 </div>
+                {d.blueprintName && (
+                  <p className="text-xs text-purple-400/70 mt-0.5">📐 图纸: {d.blueprintName}</p>
+                )}
                 {d.affixes.length > 0 && (
                   <div className="flex gap-1 mt-1.5 flex-wrap">
                     {d.affixes.map((a) => (
@@ -229,6 +232,12 @@ export default function CraftPage() {
                   <span className="text-sm font-medium">{item.designName}</span>
                   <QualityBadge quality={item.quality} />
                 </div>
+                {(() => {
+                  const src = store.designs.find((d) => d.id === item.designId)
+                  return src?.blueprintName ? (
+                    <p className="text-xs text-purple-400/70 mt-0.5">📐 图纸: {src.blueprintName}</p>
+                  ) : null
+                })()}
                 <div className="flex items-center gap-2 mt-1">
                   <span className="text-xs text-gold-400">FI {item.fashionIndex}</span>
                 </div>

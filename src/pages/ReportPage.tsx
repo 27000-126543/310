@@ -2,6 +2,8 @@ import { useState } from "react"
 import { motion } from "framer-motion"
 import { useGameStore } from "@/store"
 import { MOCK_REPORT_DATA } from "@/data/mock"
+import jsPDF from "jspdf"
+import html2canvas from "html2canvas"
 import {
   RadarChart, PolarGrid, PolarAngleAxis, Radar, ResponsiveContainer,
   AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid,
@@ -187,47 +189,63 @@ function buildRadarSvg() {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="260">${grids}${axes}<polygon points="${dataPoints}" fill="rgba(212,175,55,0.25)" stroke="#D4AF37" stroke-width="2"/>${labels}</svg>`
 }
 
-function exportReport(studioName: string) {
+async function exportReport(studioName: string) {
   const now = new Date()
   const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`
-  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${studioName}_运营报告_${dateStr}</title>
-<style>
-  *{margin:0;padding:0;box-sizing:border-box}
-  body{background:#0a0a1a;color:#e0e0e0;font-family:system-ui,-apple-system,sans-serif;padding:32px;max-width:800px;margin:0 auto}
-  h1{color:#D4AF37;text-align:center;margin-bottom:8px;font-size:24px}
-  .date{text-align:center;color:#666;margin-bottom:32px;font-size:14px}
-  h2{color:#D4AF37;font-size:18px;margin:28px 0 12px;border-left:3px solid #D4AF37;padding-left:10px}
-  .chart-wrap{background:#12122a;border-radius:12px;padding:20px;margin-bottom:16px;display:flex;justify-content:center}
-  .row{display:flex;gap:24px;flex-wrap:wrap;justify-content:center}
-  .row>div{flex:1;min-width:280px}
-  svg{max-width:100%;height:auto}
-</style></head><body>
-<h1>${studioName}</h1>
-<div class="date">运营报告 · ${dateStr}</div>
-<h2>活跃热力图</h2>
-<div class="chart-wrap">${buildHeatmapSvg()}</div>
-<h2>员工成长曲线</h2>
-<div class="chart-wrap">${buildGrowthSvg()}</div>
-<h2>收入趋势</h2>
-<div class="chart-wrap">${buildIncomeSvg()}</div>
-<h2>综合能力雷达</h2>
-<div class="chart-wrap">${buildRadarSvg()}</div>
-</body></html>`
-  const blob = new Blob([html], { type: "text/html;charset=utf-8" })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement("a")
-  a.href = url
-  a.download = `${studioName}_运营报告_${dateStr}.html`
-  a.click()
-  URL.revokeObjectURL(url)
+
+  const container = document.createElement("div")
+  container.style.cssText =
+    "position:fixed;left:-9999px;top:0;width:800px;background:#0a0a1a;color:#e0e0e0;font-family:system-ui,-apple-system,sans-serif;padding:32px;"
+  container.innerHTML = `
+    <h1 style="color:#D4AF37;text-align:center;margin-bottom:8px;font-size:24px">${studioName}</h1>
+    <div style="text-align:center;color:#666;margin-bottom:32px;font-size:14px">运营报告 · ${dateStr}</div>
+    <h2 style="color:#D4AF37;font-size:18px;margin:28px 0 12px;border-left:3px solid #D4AF37;padding-left:10px">活跃热力图</h2>
+    <div style="background:#12122a;border-radius:12px;padding:20px;margin-bottom:16px;display:flex;justify-content:center">${buildHeatmapSvg()}</div>
+    <h2 style="color:#D4AF37;font-size:18px;margin:28px 0 12px;border-left:3px solid #D4AF37;padding-left:10px">员工成长曲线</h2>
+    <div style="background:#12122a;border-radius:12px;padding:20px;margin-bottom:16px;display:flex;justify-content:center">${buildGrowthSvg()}</div>
+    <h2 style="color:#D4AF37;font-size:18px;margin:28px 0 12px;border-left:3px solid #D4AF37;padding-left:10px">收入趋势</h2>
+    <div style="background:#12122a;border-radius:12px;padding:20px;margin-bottom:16px;display:flex;justify-content:center">${buildIncomeSvg()}</div>
+    <h2 style="color:#D4AF37;font-size:18px;margin:28px 0 12px;border-left:3px solid #D4AF37;padding-left:10px">综合能力雷达</h2>
+    <div style="background:#12122a;border-radius:12px;padding:20px;margin-bottom:16px;display:flex;justify-content:center">${buildRadarSvg()}</div>
+  `
+
+  document.body.appendChild(container)
+
+  const canvas = await html2canvas(container, {
+    backgroundColor: "#0a0a1a",
+    scale: 2,
+    useCORS: true,
+  })
+
+  document.body.removeChild(container)
+
+  const imgData = canvas.toDataURL("image/png")
+  const pdf = new jsPDF("p", "mm", "a4")
+  const pdfWidth = pdf.internal.pageSize.getWidth()
+  const pdfHeight = (canvas.height * pdfWidth) / canvas.width
+
+  let yOffset = 0
+  const pageHeight = pdf.internal.pageSize.getHeight()
+  const imgHeight = pdfHeight
+
+  pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, imgHeight)
+  yOffset += pageHeight
+
+  while (yOffset < imgHeight) {
+    pdf.addPage()
+    pdf.addImage(imgData, "PNG", 0, -yOffset, pdfWidth, imgHeight)
+    yOffset += pageHeight
+  }
+
+  pdf.save(`${studioName}_运营报告_${dateStr}.pdf`)
 }
 
 export default function ReportPage() {
   const studioName = useGameStore((s) => s.studio.name)
   const [toast, setToast] = useState(false)
 
-  const handleExport = () => {
-    exportReport(studioName)
+  const handleExport = async () => {
+    await exportReport(studioName)
     setToast(true)
     setTimeout(() => setToast(false), 2000)
   }

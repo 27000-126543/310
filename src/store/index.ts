@@ -1,5 +1,5 @@
 import { create } from "zustand"
-import type { Studio, Staff, Design, CraftedItem, Facility, Transaction, FashionShow, TrendEvent, TodoItem, Activity, ApprovalRequest, Fabric, ColorOption, Accessory, AffixType, Quality, ShowReward, StyleType } from "@/types"
+import type { Studio, Staff, Design, CraftedItem, Blueprint, Facility, Transaction, FashionShow, TrendEvent, TodoItem, Activity, ApprovalRequest, Fabric, ColorOption, Accessory, AffixType, Quality, ShowReward, StyleType } from "@/types"
 import { MOCK_STUDIO, MOCK_STAFF, MOCK_CANDIDATES, MOCK_DESIGNS, MOCK_CRAFTED_ITEMS, MOCK_FACILITIES, MOCK_TRANSACTIONS, MOCK_MARKET_ITEMS, MOCK_FASHION_SHOWS, MOCK_TREND_EVENTS, MOCK_TODOS, MOCK_ACTIVITIES, MOCK_APPROVALS, MOCK_FABRICS, MOCK_COLORS, MOCK_ACCESSORIES } from "@/data/mock"
 import { calculateTeamPower, calculateCraftSuccessRate, rollCraft, determineQuality, calculateScoreCap, calculateFashionIndex, calculateAffixProbability, rollAffixes, suggestPriceRange } from "@/engine"
 
@@ -9,6 +9,7 @@ interface GameState {
   candidates: Staff[]
   designs: Design[]
   craftedItems: CraftedItem[]
+  blueprints: Blueprint[]
   facilities: Facility[]
   transactions: Transaction[]
   marketItems: Transaction[]
@@ -44,6 +45,7 @@ interface GameState {
   approveRequest: (id: string) => void
   rejectRequest: (id: string) => void
   listOnMarket: (itemId: string, price: number) => void
+  listBlueprintOnMarket: (blueprintId: string, price: number) => void
   runShowStep: (showId: string) => void
   useShowSkill: (showId: string, skillType: "calm" | "improvise") => void
   settleShow: (showId: string, result: { fashionIndexScore: number; audienceVoteScore: number; judgeScore: number; finalScore: number; opponentScore: number; win: boolean; rewards: ShowReward[] }) => void
@@ -58,6 +60,10 @@ export const useGameStore = create<GameState>((set, get) => ({
   candidates: MOCK_CANDIDATES,
   designs: MOCK_DESIGNS,
   craftedItems: MOCK_CRAFTED_ITEMS,
+  blueprints: [
+    { id: "bp-init1", name: "极光披风图纸", quality: "epic" as Quality, rarity: 4, source: "初始图纸" },
+    { id: "bp-init2", name: "古韵锦衣图纸", quality: "fine" as Quality, rarity: 2, source: "初始图纸" },
+  ],
   facilities: MOCK_FACILITIES,
   transactions: MOCK_TRANSACTIONS,
   marketItems: MOCK_MARKET_ITEMS,
@@ -273,6 +279,30 @@ export const useGameStore = create<GameState>((set, get) => ({
     }
   }),
 
+  listBlueprintOnMarket: (blueprintId, price) => set((state) => {
+    const bp = state.blueprints.find((b) => b.id === blueprintId)
+    if (!bp) return state
+    const suggested = get().getSuggestedPrice("blueprint", bp.quality)
+    const listing: Transaction = {
+      id: `t-${Date.now()}`,
+      itemId: bp.id,
+      itemType: "blueprint",
+      itemName: bp.name,
+      quality: bp.quality,
+      price,
+      suggestedMin: suggested.min,
+      suggestedMax: suggested.max,
+      sellerId: state.studio.id,
+      sellerName: state.studio.name,
+      timestamp: Date.now(),
+      completed: false,
+    }
+    return {
+      blueprints: state.blueprints.filter((b) => b.id !== blueprintId),
+      marketItems: [...state.marketItems, listing],
+    }
+  }),
+
   runShowStep: (showId) => set((state) => {
     const show = state.fashionShows.find((s) => s.id === showId)
     if (!show || show.completed) return state
@@ -324,6 +354,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     let fameEarned = 0
     const newMaterials = { ...state.studio.materials }
     const rewards: ShowReward[] = []
+    const newBlueprints = [...state.blueprints]
 
     if (result.win) {
       coinsEarned = 500 + Math.floor(Math.random() * 500)
@@ -340,7 +371,19 @@ export const useGameStore = create<GameState>((set, get) => ({
         rewards.push({ type: "fabric", name: fabricName, value: 3, rarity: 4 })
       }
       if (rareFabricChance < 0.15) {
-        rewards.push({ type: "blueprint", name: "稀有设计图纸", value: 1, rarity: 5 })
+        const bpNames = ["星河战袍图纸", "幻影流光图纸", "极光绽放图纸", "虚空裂隙图纸"]
+        const bpQualities: Quality[] = ["epic", "epic", "legendary", "legendary"]
+        const bpIdx = Math.floor(Math.random() * bpNames.length)
+        const bpName = bpNames[bpIdx]
+        const bpQuality = bpQualities[bpIdx]
+        rewards.push({ type: "blueprint", name: bpName, value: 1, rarity: 5 })
+        newBlueprints.push({
+          id: `bp-${Date.now()}`,
+          name: bpName,
+          quality: bpQuality,
+          rarity: 5,
+          source: `时装秀奖励 vs ${show.opponentName}`,
+        })
       }
     } else {
       coinsEarned = 100 + Math.floor(Math.random() * 200)
@@ -370,6 +413,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         fame: state.studio.fame + fameEarned,
         materials: newMaterials,
       },
+      blueprints: newBlueprints,
     }
   }),
 
@@ -390,6 +434,16 @@ export const useGameStore = create<GameState>((set, get) => ({
         ),
         transactions: [...state.transactions, { ...item, completed: true, buyerId: state.studio.id }],
         studio: { ...state.studio, coins: state.studio.coins - item.price },
+      }
+
+      if (item.itemType === "blueprint") {
+        updates.blueprints = [...state.blueprints, {
+          id: `bp-${Date.now()}`,
+          name: item.itemName,
+          quality: item.quality || "fine",
+          rarity: item.quality === "legendary" ? 5 : item.quality === "epic" ? 4 : 3,
+          source: `交易中心购买`,
+        }]
       }
 
       if (shouldTriggerTrend) {

@@ -24,6 +24,12 @@ const STYLE_BADGE_COLOR: Record<StyleType, string> = {
 
 const FACILITY_TYPES = ["designTable", "sewingMachine", "photoStudio"] as const
 
+const LAYOUT_AREAS = [
+  { type: "designTable" as const, name: "设计区" },
+  { type: "sewingMachine" as const, name: "制作区" },
+  { type: "photoStudio" as const, name: "展示区" },
+]
+
 const WORK_NAMES: Record<StyleType, string[]> = {
   ancient: ["凤舞九天袍", "墨韵锦衣", "云水禅心裙", "金丝翎羽衣", "汉宫秋月裳"],
   cyber: ["霓虹幻梦衣", "全息战甲", "脉冲光翼装", "量子迷彩服", "光子流线裙"],
@@ -158,6 +164,28 @@ function DetailPanel({ entry, rank, onBack }: { entry: RankEntry; rank: number; 
             </div>
           </div>
         ))}
+      </div>
+
+      <h3 className="text-white font-bold mb-3">布局概览</h3>
+      <div className="grid grid-cols-3 gap-3 mb-6">
+        {LAYOUT_AREAS.map((area, i) => {
+          const facility = facilities.find((f) => f.type === area.type)
+          const level = facility?.level ?? 1
+          const utilization = 40 + Math.floor(seededRand(entry.studioId, 200 + i) * 55)
+          return (
+            <div key={area.type} className="card-dark p-3">
+              <div className="flex items-center gap-2 mb-2">
+                <span>{FACILITY_ICONS[area.type]}</span>
+                <span className="text-sm text-white font-bold">{area.name}</span>
+                <span className="text-xs text-gray-400">Lv.{level}</span>
+              </div>
+              <div className="text-xs text-gray-400 mb-1">利用率 {utilization}%</div>
+              <div className="w-full h-2 bg-dark-600 rounded-full overflow-hidden">
+                <div className="h-full bg-gold-400 rounded-full transition-all" style={{ width: `${utilization}%` }} />
+              </div>
+            </div>
+          )
+        })}
       </div>
 
       <h3 className="text-white font-bold mb-3">作品展示</h3>

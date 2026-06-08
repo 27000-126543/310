@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { Search, Coins, CheckCircle, X, TrendingUp } from "lucide-react"
 import { useGameStore } from "@/store"
 import { QUALITY_LABELS, QUALITY_COLORS } from "@/types"
-import type { Quality, Transaction } from "@/types"
+import type { Quality, Transaction, Blueprint } from "@/types"
 
 const TABS = ["市场浏览", "上架出售", "成交记录"]
 const fadeUp = { initial: { opacity: 0, y: 20 }, animate: { opacity: 1, y: 0 } }
@@ -104,7 +104,7 @@ export default function TradePage() {
         )}
 
         {activeTab === 1 && (
-          <motion.div key="list" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }}>
+          <motion.div key="list" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="space-y-4">
             <motion.div variants={stagger} initial="initial" animate="animate" className="grid grid-cols-2 gap-3">
               {store.craftedItems.map((item) => {
                 const suggested = store.getSuggestedPrice("clothing", item.quality)
@@ -150,10 +150,66 @@ export default function TradePage() {
                   </motion.div>
                 )
               })}
-              {store.craftedItems.length === 0 && (
+              {store.craftedItems.length === 0 && store.blueprints.length === 0 && (
                 <div className="col-span-2 text-center text-gray-600 py-10">暂无可出售物品</div>
               )}
             </motion.div>
+
+            <div>
+              <h3 className="section-title text-sm mb-2">图纸</h3>
+              {store.blueprints.length > 0 ? (
+                <motion.div variants={stagger} initial="initial" animate="animate" className="grid grid-cols-2 gap-3">
+                  {store.blueprints.map((bp) => {
+                    const suggested = store.getSuggestedPrice("blueprint", bp.quality)
+                    const stars = "★".repeat(bp.rarity) + "☆".repeat(5 - bp.rarity)
+                    return (
+                      <motion.div key={bp.id} variants={fadeUp} className="card-dark">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="font-medium text-sm">{bp.name}</span>
+                          <QualityBadge quality={bp.quality} />
+                        </div>
+                        <div className="text-xs text-yellow-400/80 mb-1">稀有度: {stars}</div>
+                        <div className="text-xs text-gray-400 mb-1">来源: {bp.source}</div>
+                        <div className="text-xs space-y-0.5 mb-2">
+                          <div className="text-gold-400/80">近7天均价: {suggested.avg.toLocaleString()}</div>
+                          <div className="text-green-400/70">建议最低: {suggested.min.toLocaleString()}</div>
+                          <div className="text-orange-400/70">建议最高: {suggested.max.toLocaleString()}</div>
+                        </div>
+                        <div className="flex gap-2">
+                          <input
+                            type="number"
+                            value={prices[bp.id] || ""}
+                            onChange={(e) =>
+                              setPrices((p) => ({ ...p, [bp.id]: e.target.value }))
+                            }
+                            placeholder="定价"
+                            className="flex-1 bg-dark-700 border border-dark-500/30 rounded-lg px-3 py-1.5 text-sm outline-none focus:border-gold-400/50 transition-colors placeholder:text-gray-600"
+                          />
+                          <button
+                            onClick={() => {
+                              const price = Number(prices[bp.id])
+                              if (price > 0) {
+                                store.listBlueprintOnMarket(bp.id, price)
+                                setPrices((p) => {
+                                  const next = { ...p }
+                                  delete next[bp.id]
+                                  return next
+                                })
+                              }
+                            }}
+                            className="btn-gold text-sm px-3"
+                          >
+                            上架
+                          </button>
+                        </div>
+                      </motion.div>
+                    )
+                  })}
+                </motion.div>
+              ) : (
+                <div className="text-center text-gray-600 py-6">暂无图纸</div>
+              )}
+            </div>
           </motion.div>
         )}
 

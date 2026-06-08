@@ -76,6 +76,14 @@ export interface CraftResult {
   createdAt: number
 }
 
+export interface Blueprint {
+  id: string
+  name: string
+  quality: Quality
+  rarity: number
+  source: string
+}
+
 export interface CraftedItem {
   id: string
   designId: string

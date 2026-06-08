@@ -1,4 +1,5 @@
 import { create } from "zustand"
+import { persist } from "zustand/middleware"
 import type { Studio, Staff, Design, CraftedItem, Blueprint, Facility, Transaction, FashionShow, TrendEvent, TodoItem, Activity, ApprovalRequest, Fabric, ColorOption, Accessory, AffixType, Quality, ShowReward, StyleType } from "@/types"
 import { MOCK_STUDIO, MOCK_STAFF, MOCK_CANDIDATES, MOCK_DESIGNS, MOCK_CRAFTED_ITEMS, MOCK_FACILITIES, MOCK_TRANSACTIONS, MOCK_MARKET_ITEMS, MOCK_FASHION_SHOWS, MOCK_TREND_EVENTS, MOCK_TODOS, MOCK_ACTIVITIES, MOCK_APPROVALS, MOCK_FABRICS, MOCK_COLORS, MOCK_ACCESSORIES, ALL_BLUEPRINTS } from "@/data/mock"
 import { calculateTeamPower, calculateCraftSuccessRate, rollCraft, determineQuality, calculateScoreCap, calculateFashionIndex, calculateAffixProbability, rollAffixes, suggestPriceRange } from "@/engine"
@@ -57,7 +58,7 @@ interface GameState {
   getBlueprintCodex: () => { blueprint: Blueprint; status: "owned" | "listed" | "unobtained" }[]
 }
 
-export const useGameStore = create<GameState>((set, get) => ({
+export const useGameStore = create<GameState>()(persist((set, get) => ({
   studio: MOCK_STUDIO,
   staff: MOCK_STAFF,
   candidates: MOCK_CANDIDATES,
